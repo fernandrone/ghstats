@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/shurcooL/githubv4 v0.0.0-20210922025249-6831e00d857f
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
 	github.com/urfave/cli/v2 v2.3.0

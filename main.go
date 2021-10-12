@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 
 	cli "github.com/urfave/cli/v2"
 
+	"github.com/fernandrone/ghstats/pkg/count"
+	"github.com/fernandrone/ghstats/pkg/describe"
+	"github.com/fernandrone/ghstats/pkg/list"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -28,29 +30,24 @@ func main() {
 
 		Commands: []*cli.Command{
 			{
-				Name:  "issue",
-				Usage: "Issue statistics",
+				Name:  "count",
+				Usage: "Count GitHub objects",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "count",
-						Usage: "Count total number of issues",
+						Name:  "prs",
+						Usage: "Count total number of pull requests in a repository",
 
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "repo",
 								Aliases:  []string{"r"},
-								Usage:    "GitHub Repository (i.e. \"octocat/hello-world\")",
+								Usage:    "GitHub Repo (i.e. \"github/octocat\")",
 								Required: true,
 							},
-							&cli.StringSliceFlag{
-								Name:    "is",
-								Aliases: []string{"i"},
-								Usage:   "Optional is filter (i.e. \"pr\")",
-							},
 							&cli.StringFlag{
-								Name:    "params",
-								Aliases: []string{"p"},
-								Usage:   "Optional query parameters (i.e. \"merged:>=2020-10-08\")",
+								Name:    "filter",
+								Aliases: []string{"f"},
+								Usage:   "Optional filters (i.e. \"is:merged merged:>=2020-10-08\")",
 							},
 						},
 
@@ -62,25 +59,62 @@ func main() {
 								),
 							)
 
-							return issueCount(client, c.String("repo"), c.StringSlice("is"), c.String("params"), os.Stdout)
+							return count.PullRequests(client, c.String("repo"), c.String("filter"), os.Stdout)
+						},
+					},
+					{
+						Name:  "issues",
+						Usage: "Count total number of issues in a repository",
+
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:    "repo",
+								Aliases: []string{"r"},
+								Usage:   "GitHub Repo (i.e. \"github/octocat\")",
+							},
+							&cli.StringFlag{
+								Name:    "filter",
+								Aliases: []string{"f"},
+								Usage:   "Optional filters (i.e. \"is:closed closed:>=2020-10-08\")",
+							},
+						},
+
+						Action: func(c *cli.Context) error {
+							client := githubv4.NewClient(
+								oauth2.NewClient(
+									context.Background(),
+									oauth2.StaticTokenSource(&oauth2.Token{AccessToken: c.String("token")}),
+								),
+							)
+
+							return count.Issues(client, c.String("repo"), c.String("filter"), os.Stdout)
 						},
 					},
 				},
 			},
 			{
-				Name:  "repo",
-				Usage: "Repository statistics",
+				Name:  "list",
+				Usage: "List GitHub objects",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "list",
-						Usage: "List all repositories",
+						Name:  "repo",
+						Usage: "List repositories. Defaults to listing the client's repositories unless the 'user' or 'org' filters are used.",
 
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:     "org",
-								Aliases:  []string{"o"},
-								Usage:    "GitHub Organization (i.e. \"octocat\")",
-								Required: true,
+								Name:    "org",
+								Aliases: []string{"o"},
+								Usage:   "GitHub Organization (i.e. \"github\")",
+							},
+							&cli.StringFlag{
+								Name:    "user",
+								Aliases: []string{"u"},
+								Usage:   "GitHub User (i.e. \"octocat\")",
+							},
+							&cli.StringFlag{
+								Name:    "filter",
+								Aliases: []string{"f"},
+								Usage:   "Optional filters (i.e. \"stars:500\" matches repositories with exactly 500 stars)",
 							},
 						},
 
@@ -92,7 +126,70 @@ func main() {
 								),
 							)
 
-							return repoList(client, c.String("org"), os.Stdout)
+							return list.Repositories(client, c.String("org"), c.String("user"), c.String("filter"), os.Stdout)
+						},
+					},
+				},
+			},
+			{
+				Name:  "describe",
+				Usage: "Describe GitHub objects",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "authors",
+						Usage: "Describe authors of pull requests and/or issues in a repository",
+
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "repo",
+								Aliases:  []string{"r"},
+								Usage:    "GitHub Repo (i.e. \"github/octocat\")",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:    "filter",
+								Aliases: []string{"f"},
+								Usage:   "Optional filters (i.e. \"is:pr is:merged merged:>=2020-10-08\")",
+							},
+						},
+
+						Action: func(c *cli.Context) error {
+							client := githubv4.NewClient(
+								oauth2.NewClient(
+									context.Background(),
+									oauth2.StaticTokenSource(&oauth2.Token{AccessToken: c.String("token")}),
+								),
+							)
+
+							return describe.Authors(client, c.String("repo"), c.String("filter"), os.Stdout)
+						},
+					},
+					{
+						Name:  "issues",
+						Usage: "Count total number of issues in a repository",
+
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:    "repo",
+								Aliases: []string{"r"},
+								Usage:   "GitHub Repo (i.e. \"github/octocat\")",
+							},
+							&cli.StringFlag{
+								Name:    "filter",
+								Aliases: []string{"f"},
+								Usage:   "Optional filters (i.e. \"is:closed closed:>=2020-10-08\")",
+							},
+						},
+
+						Action: func(c *cli.Context) error {
+							client := githubv4.NewClient(
+								oauth2.NewClient(
+									context.Background(),
+									oauth2.StaticTokenSource(&oauth2.Token{AccessToken: c.String("token")}),
+								),
+							)
+
+							return count.Issues(client, c.String("repo"), c.String("filter"), os.Stdout)
 						},
 					},
 				},
@@ -106,63 +203,106 @@ func main() {
 	}
 }
 
-func issueCount(client *githubv4.Client, repo string, is []string, params string, w io.Writer) error {
-	searchQuery := fmt.Sprintf("repo:%s %s", repo, params)
+// func countPR(client *githubv4.Client, repo string, filter string, w io.Writer) error {
+// 	searchQuery := fmt.Sprintf("%s is:pr", filter)
 
-	// append every 'is:' condition
-	for _, cond := range is {
-		searchQuery = fmt.Sprintf("%s is:%s", searchQuery, cond)
-	}
+// 	if repo != "" {
+// 		searchQuery = fmt.Sprintf("%s repo:%s", searchQuery, repo)
+// 	}
 
-	fmt.Println(searchQuery)
+// 	// append every 'is:' condition
+// 	for _, cond := range is {
+// 		searchQuery = fmt.Sprintf("%s is:%s", searchQuery, cond)
+// 	}
 
-	variables := map[string]interface{}{
-		"searchQuery": githubv4.String(searchQuery),
-	}
+// 	variables := map[string]interface{}{
+// 		"searchQuery":    githubv4.String(searchQuery),
+// 		"commentsCursor": (*githubv4.String)(nil), // Null after argument to get first page.
+// 	}
 
-	var query struct {
-		Search struct {
-			IssueCount int
-		} `graphql:"search(query: $searchQuery, type: ISSUE, first: 100)"`
-	}
+// 	// type PullRequestNode struct {
+// 	// 	PullRequest struct {
+// 	// 		Repository struct {
+// 	// 			NameWithOwner string
+// 	// 		}
+// 	// 	} `graphql:"... on PullRequest"`
+// 	// }
 
-	err := client.Query(context.Background(), &query, variables)
+// 	var query struct {
+// 		Search struct {
+// 			IssueCount int
+// 			// Nodes      []PullRequestNode
+// 			// PageInfo   struct {
+// 			// 	EndCursor   githubv4.String
+// 			// 	HasNextPage bool
+// 			// }
+// 		} `graphql:"search(query: $searchQuery, type: ISSUE, first: 1, after: $commentsCursor)"`
+// 	}
 
-	if err != nil {
-		return err
-	}
+// 	err := client.Query(context.Background(), &query, variables)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	fmt.Fprintln(w, query.Search.IssueCount)
-	return nil
-}
+// 	// var allPRs []PullRequestNode
 
-func repoList(client *githubv4.Client, org string, w io.Writer) error {
-	var query struct {
-		Search struct {
-			Edges []struct {
-				Node struct {
-					Repository struct {
-						NameWithOwner string
-					} `graphql:"... on Repository"`
-				}
-			}
-		} `graphql:"search(query: $searchQuery, type: REPOSITORY, first: 10)"`
-	}
+// 	table := tablewriter.NewWriter(w)
+// 	var rows [][]string
 
-	searchQuery := githubv4.String(fmt.Sprintf("user:%s", org))
+// 	// if repo == "" {
+// 	// 	for {
 
-	fmt.Println(searchQuery)
+// 	// 		err := client.Query(context.Background(), &query, variables)
+// 	// 		if err != nil {
+// 	// 			return err
+// 	// 		}
 
-	variables := map[string]interface{}{
-		"searchQuery": searchQuery,
-	}
+// 	// 		allPRs = append(allPRs, query.Search.Nodes...)
 
-	err := client.Query(context.Background(), &query, variables)
+// 	// 		if !query.Search.PageInfo.HasNextPage {
+// 	// 			break
+// 	// 		}
 
-	if err != nil {
-		return err
-	}
+// 	// 		variables["commentsCursor"] = githubv4.NewString(query.Search.PageInfo.EndCursor)
+// 	// 	}
 
-	fmt.Fprintln(w, query.Search.Edges)
-	return nil
-}
+// 	// 	prMap := make(map[string]int)
+
+// 	// 	for _, node := range allPRs {
+// 	// 		if val, ok := prMap[node.PullRequest.Repository.NameWithOwner]; !ok {
+// 	// 			prMap[node.PullRequest.Repository.NameWithOwner] = 1
+// 	// 		} else {
+// 	// 			prMap[node.PullRequest.Repository.NameWithOwner] = val + 1
+// 	// 		}
+// 	// 	}
+
+// 	// 	for k, v := range prMap {
+// 	// 		rows = append(rows, []string{
+// 	// 			k,
+// 	// 			fmt.Sprintf("%5d", v),
+// 	// 		})
+// 	// 	}
+// 	// } else {
+// 	rows = append(rows, []string{
+// 		repo,
+// 		fmt.Sprintf("%5d", query.Search.IssueCount),
+// 	})
+// 	// }
+
+// 	table.SetAutoWrapText(false)
+// 	table.SetAutoFormatHeaders(true)
+// 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+// 	table.SetAlignment(tablewriter.ALIGN_LEFT)
+// 	table.SetCenterSeparator("")
+// 	table.SetColumnSeparator("")
+// 	table.SetRowSeparator("")
+// 	table.SetHeaderLine(false)
+// 	table.SetBorder(false)
+// 	table.SetTablePadding("\t")
+// 	table.SetNoWhiteSpace(true)
+
+// 	table.AppendBulk(rows)
+// 	table.Render()
+
+// 	return nil
+// }
